@@ -170,3 +170,12 @@ func TestRunInvalidArguments(t *testing.T) {
 		}
 	}
 }
+
+func TestRunVersion(t *testing.T) {
+	for _, arg := range []string{"version", "--version"} {
+		var output bytes.Buffer
+		if code := run([]string{arg}, &output); code != 0 || output.String() != "axo-clash "+version+"\n" {
+			t.Fatalf("version: code=%d output=%q", code, output.String())
+		}
+	}
+}

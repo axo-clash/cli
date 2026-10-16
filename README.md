@@ -1,6 +1,59 @@
 # CLI AXO Clash
 
-Vérifie un bot déjà démarré ou relie tes bots locaux au labo cloud. Go 1.23 ou supérieur. Le relais utilise `coder/websocket` et `x/term` pour WSS et la saisie masquée.
+Vérifie un bot déjà démarré ou relie tes bots locaux au labo cloud. Le relais utilise `coder/websocket` et `x/term` pour WSS et la saisie masquée.
+
+## Installation
+
+Aucune installation de Go nécessaire. Les releases fournissent des binaires **Linux, macOS et Windows**, en **x64 et ARM64**.
+
+### Linux / macOS
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/axo-clash/cli/HEAD/install.sh | bash
+axo-clash --version
+```
+
+Le script installe la dernière release stable dans `~/.local/bin`, sans sudo, et indique la ligne à ajouter au `PATH` si nécessaire. Pour choisir la version ou le dossier :
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/axo-clash/cli/HEAD/install.sh | AXO_CLASH_VERSION=v1.0.0 INSTALL_DIR="$HOME/.local/bin" bash
+```
+
+### Windows (PowerShell)
+
+```powershell
+irm https://raw.githubusercontent.com/axo-clash/cli/HEAD/install.ps1 | iex
+axo-clash --version
+```
+
+Le script installe dans `%LOCALAPPDATA%\Programs\axo-clash` et ajoute ce dossier au `PATH` utilisateur et à la session courante, sans droits administrateur. Pour choisir la version ou le dossier, télécharge le script puis exécute-le :
+
+```powershell
+Invoke-WebRequest https://raw.githubusercontent.com/axo-clash/cli/HEAD/install.ps1 -OutFile install.ps1
+./install.ps1 -Version v1.0.0 -InstallDir "$HOME\bin"
+```
+
+Les scripts vérifient le SHA-256 publié dans la release avant de remplacer le binaire. Relance la même commande pour mettre à jour. Tu peux aussi télécharger et inspecter les scripts avant de les exécuter, ou installer manuellement un binaire depuis [GitHub Releases](https://github.com/axo-clash/cli/releases). Linux nécessite `curl` et `sha256sum` ou `shasum` ; macOS fournit `shasum`. PowerShell 5.1 ou supérieur est requis sous Windows.
+
+## Publier une version
+
+Depuis le dépôt `cli`, après avoir poussé les changements à publier :
+
+```sh
+git tag -a v1.0.0 -m "CLI v1.0.0"
+git push origin v1.0.0
+```
+
+Le workflow `.github/workflows/release.yml` :
+
+1. Valide le tag `vMAJOR.MINOR.PATCH` (suffixe de préversion autorisé, ex. `v1.1.0-rc.1`).
+2. Exécute les tests Go avec le détecteur de courses et `go vet` sur les runners Linux, macOS et Windows, ainsi que les tests des installateurs.
+3. Compile les six binaires sans CGO, avec la version intégrée. Chaque OS est compilé sur son runner ; l'autre architecture est compilée de manière croisée, sans exécution sur cette architecture.
+4. Publie une GitHub Release avec les binaires `axo-clash_{linux|darwin|windows}_{amd64|arm64}[.exe]`, `checksums.txt` et les deux scripts, après réussite de tous les builds.
+
+Un tag avec suffixe produit une **préversion**, ignorée par l'installation `latest`. Pour relancer la publication après un échec avant création de la release, utilise « Re-run failed jobs » ou lance manuellement le workflow en sélectionnant le tag existant. Une release déjà publiée n'est pas écrasée : publie un nouveau tag. Le workflow utilise le `GITHUB_TOKEN` intégré avec `contents: write` uniquement pour le job de publication ; aucun secret supplémentaire requis. Les règles GitHub du dépôt doivent autoriser ce job à créer des releases.
+
+Les commandes d'installation deviennent utilisables une fois les scripts poussés sur la branche par défaut et la première release stable publiée. Pour développer depuis les sources, Go 1.23 ou supérieur est requis ; les exemples `go run .` ci-dessous se lancent depuis ce dossier. Après installation, remplace `go run .` par `axo-clash`.
 
 ## Relais du labo
 
@@ -33,7 +86,7 @@ go run . check-bot -url http://localhost:9000/api/v1/bots
 # Répéter toute la suite pour détecter les erreurs intermittentes
 go run . check-bot -url http://localhost:9000/api/v1/bots -repeat 5
 
-# Construire le futur CLI
+# Construire le CLI
 go build -o axo-clash .
 ./axo-clash check-bot -url http://localhost:9000/api/v1/bots -timeout 2s
 ```

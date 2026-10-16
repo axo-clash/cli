@@ -16,12 +16,19 @@ import (
 
 const maxResponseBytes = 1 << 20
 
+// Set by the release build with -ldflags.
+var version = "dev"
+
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout))
 }
 
 // run is kept separate so future CLI commands can reuse the checker.
 func run(args []string, out io.Writer) int {
+	if len(args) == 1 && (args[0] == "version" || args[0] == "--version") {
+		fmt.Fprintf(out, "axo-clash %s\n", version)
+		return 0
+	}
 	if len(args) > 0 && args[0] == "relay" {
 		return runRelay(args[1:], out)
 	}
