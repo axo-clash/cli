@@ -1,4 +1,4 @@
-# Usage: irm https://raw.githubusercontent.com/axo-clash/cli/HEAD/install.ps1 | iex
+# Usage: irm https://raw.githubusercontent.com/axo-clash/cli/main/install.ps1 | iex
 param(
     [string]$Version = 'latest',
     [string]$InstallDir = (Join-Path $env:LOCALAPPDATA 'Programs\axo-clash')

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Usage: curl -fsSL https://raw.githubusercontent.com/axo-clash/cli/HEAD/install.sh | bash
+# Usage: curl -fsSL https://raw.githubusercontent.com/axo-clash/cli/main/install.sh | bash
 main() (
   local repo='https://github.com/axo-clash/cli' version="${AXO_CLASH_VERSION:-latest}"
   local install_dir="${INSTALL_DIR:-$HOME/.local/bin}" os arch asset tmp expected actual resolved

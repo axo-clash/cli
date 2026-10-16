@@ -1,115 +1,196 @@
-# CLI AXO Clash
+# AXO Clash CLI
 
-Vérifie un bot déjà démarré ou relie tes bots locaux au labo cloud. Le relais utilise `coder/websocket` et `x/term` pour WSS et la saisie masquée.
+Teste ton bot et connecte-le au laboratoire [AXO Clash](https://clash.axopen.cloud/) depuis ton terminal.
+
+- **`check-bot`** vérifie les réponses HTTP de ton bot avec 41 contrôles de compatibilité.
+- **`relay`** relie tes bots locaux au labo pour lancer des combats depuis le site.
+
+[Site AXO Clash](https://clash.axopen.cloud/) · [Labo](https://clash.axopen.cloud/lab) · [Téléchargements](https://github.com/axo-clash/cli/releases)
 
 ## Installation
 
-Aucune installation de Go nécessaire. Les releases fournissent des binaires **Linux, macOS et Windows**, en **x64 et ARM64**.
+Le CLI est disponible pour **Linux, macOS et Windows**, sur **x64 et ARM64**. Tu n'as pas besoin d'installer Go.
 
-### Linux / macOS
+### Linux et macOS
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/axo-clash/cli/HEAD/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/axo-clash/cli/main/install.sh | bash
+```
+
+Le binaire est installé dans `~/.local/bin`, sans `sudo`. Si ce dossier n'est pas dans ton `PATH`, le script affiche la ligne à ajouter à `~/.zshrc` ou `~/.bashrc`.
+
+### Windows
+
+Dans PowerShell 5.1 ou supérieur :
+
+```powershell
+irm https://raw.githubusercontent.com/axo-clash/cli/main/install.ps1 | iex
+```
+
+Le binaire est installé dans `%LOCALAPPDATA%\Programs\axo-clash`, sans droits administrateur. Le script ajoute ce dossier au `PATH` utilisateur et à la session courante.
+
+### Vérifier l'installation et mettre à jour
+
+```sh
 axo-clash --version
 ```
 
-Le script installe la dernière release stable dans `~/.local/bin`, sans sudo, et indique la ligne à ajouter au `PATH` si nécessaire. Pour choisir la version ou le dossier :
+Relance la commande d'installation pour passer à la dernière version stable. Les scripts détectent ton système et ton architecture, puis vérifient la somme **SHA-256** avant de remplacer le binaire. Linux et macOS nécessitent `curl` et `sha256sum` ou `shasum`.
+
+Tu peux télécharger les scripts pour les lire avant exécution, ou récupérer directement le binaire adapté à ton système dans les [releases](https://github.com/axo-clash/cli/releases). Pour une installation manuelle, renomme-le en `axo-clash` (`axo-clash.exe` sur Windows), place-le dans un dossier du `PATH` et rends-le exécutable sur Linux/macOS avec `chmod +x`.
+
+<details>
+<summary>Choisir une version ou un dossier d'installation</summary>
+
+Linux / macOS :
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/axo-clash/cli/HEAD/install.sh | AXO_CLASH_VERSION=v1.0.0 INSTALL_DIR="$HOME/.local/bin" bash
+curl -fsSL https://raw.githubusercontent.com/axo-clash/cli/main/install.sh | AXO_CLASH_VERSION=v0.1.0 INSTALL_DIR="$HOME/.local/bin" bash
 ```
 
-### Windows (PowerShell)
+Windows :
 
 ```powershell
-irm https://raw.githubusercontent.com/axo-clash/cli/HEAD/install.ps1 | iex
+Invoke-WebRequest https://raw.githubusercontent.com/axo-clash/cli/main/install.ps1 -OutFile install.ps1
+./install.ps1 -Version v0.1.0 -InstallDir "$HOME\bin"
+```
+
+Une préversion peut être installée explicitement en précisant son tag. Elle n'est pas proposée par l'installation automatique de la dernière version stable.
+
+</details>
+
+## Démarrage rapide
+
+1. Démarre ton bot en local. Il doit exposer `GET /info` et `POST /play` sous son URL de base.
+2. Vérifie sa compatibilité :
+
+   ```sh
+   axo-clash check-bot --url http://127.0.0.1:9000/api/v1/bots
+   ```
+
+3. Ouvre le [labo](https://clash.axopen.cloud/lab), connecte-toi et crée une session de relais. Si l'accès direct affiche une erreur, ouvre [l'accueil du site](https://clash.axopen.cloud/) puis le menu **Labo**.
+4. Connecte ton bot :
+
+   ```sh
+   axo-clash relay --bot alpha=http://127.0.0.1:9000/api/v1/bots
+   ```
+
+5. Saisis le code de la session dans l'invite du terminal, puis lance tes combats depuis le labo. Garde le CLI et ton bot démarrés pendant les combats.
+
+## Commandes
+
+### `relay` — connecter des bots au labo
+
+Un seul bot :
+
+```sh
+axo-clash relay --bot alpha=http://127.0.0.1:9000/api/v1/bots
+```
+
+Plusieurs bots, par exemple deux versions de ton programme :
+
+```sh
+axo-clash relay --bot alpha=http://127.0.0.1:9000/api/v1/bots --bot beta=http://127.0.0.1:9001/api/v1/bots
+```
+
+Chaque option `--bot` associe un alias à l'URL de base du bot. Seules les adresses locales `localhost`, `127.0.0.1` et `::1` sont acceptées. Le CLI ouvre une connexion WebSocket sortante vers AXO Clash : tu n'as pas besoin d'exposer un port de ta machine sur Internet.
+
+Le code de session est saisi dans une invite masquée. Il reste en mémoire pendant la connexion ; ne le passe pas en argument. `Ctrl+C` arrête le relais. Le CLI tente de se reconnecter en cas de coupure réseau. Si la session a expiré ou a été révoquée, crée une nouvelle session dans le labo et relance la commande.
+
+| Option | Description |
+| --- | --- |
+| `--bot alias=URL` | Bot local à connecter ; option répétable. |
+| `--api URL` | Autre instance de l'API ; défaut : `https://clash-api.axopen.cloud/api/v1`. Également configurable avec `AXO_CLASH_API_URL`. |
+| `--dev` | Autoriser une API HTTP locale pour le développement. |
+| `--help` | Afficher l'aide de la commande. |
+
+Pour utiliser une instance locale d'AXO Clash :
+
+```sh
+axo-clash relay --api http://localhost:8080/api/v1 --dev --bot alpha=http://127.0.0.1:9000/api/v1/bots
+```
+
+### `check-bot` — vérifier la compatibilité d'un bot
+
+Le bot doit déjà être démarré. Cette commande s'utilise sans compte AXO Clash ni connexion au labo : elle appelle directement ton bot.
+
+```sh
+axo-clash check-bot --url http://127.0.0.1:9000/api/v1/bots
+```
+
+Pour détecter des erreurs intermittentes :
+
+```sh
+axo-clash check-bot --url http://127.0.0.1:9000/api/v1/bots --repeat 5
+```
+
+| Option | Défaut | Description |
+| --- | --- | --- |
+| `--url` | `http://localhost:9000/api/v1/bots` | URL de base ; le CLI ajoute `/info` et `/play`. |
+| `--repeat` | `1` | Nombre de passages de la suite complète. |
+| `--info-timeout` | `30s` | Délai maximal pour la réponse à `/info`. |
+| `--timeout` | `2s` | Délai maximal pour chaque réponse à `/play`. |
+| `--help` | | Afficher l'aide de la commande. |
+
+Si ton bot expose `/info` et `/play` directement à la racine, utilise par exemple `--url http://localhost:9000`.
+
+Chaque passage effectue **41 contrôles** : une requête `GET /info` et 40 scénarios `POST /play`. Ils couvrent notamment les deux rôles du bot, les coordonnées du plateau, les projectiles, les champs optionnels et l'historique des actions. Chaque réponse doit être un JSON valide avec un statut HTTP 200 ; les redirections sont refusées.
+
+Le CLI affiche les erreurs par scénario et termine avec le code :
+
+| Code | Résultat |
+| --- | --- |
+| `0` | Tous les contrôles ont réussi. |
+| `1` | Au moins un contrôle a échoué. |
+| `2` | Arguments invalides. |
+
+Ces contrôles vérifient la compatibilité des réponses pour les scénarios envoyés. Ils n'évaluent pas la stratégie de ton bot et ne garantissent pas sa réponse à toutes les situations de jeu.
+
+### `--version` — afficher la version installée
+
+```sh
 axo-clash --version
 ```
 
-Le script installe dans `%LOCALAPPDATA%\Programs\axo-clash` et ajoute ce dossier au `PATH` utilisateur et à la session courante, sans droits administrateur. Pour choisir la version ou le dossier, télécharge le script puis exécute-le :
+## Développement
 
-```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/axo-clash/cli/HEAD/install.ps1 -OutFile install.ps1
-./install.ps1 -Version v1.0.0 -InstallDir "$HOME\bin"
-```
-
-Les scripts vérifient le SHA-256 publié dans la release avant de remplacer le binaire. Relance la même commande pour mettre à jour. Tu peux aussi télécharger et inspecter les scripts avant de les exécuter, ou installer manuellement un binaire depuis [GitHub Releases](https://github.com/axo-clash/cli/releases). Linux nécessite `curl` et `sha256sum` ou `shasum` ; macOS fournit `shasum`. PowerShell 5.1 ou supérieur est requis sous Windows.
-
-## Publier une version
-
-Depuis le dépôt `cli`, après avoir poussé les changements à publier :
+Go **1.23 ou supérieur** est nécessaire pour compiler depuis les sources.
 
 ```sh
-git tag -a v1.0.0 -m "CLI v1.0.0"
-git push origin v1.0.0
-```
-
-Le workflow `.github/workflows/release.yml` :
-
-1. Valide le tag `vMAJOR.MINOR.PATCH` (suffixe de préversion autorisé, ex. `v1.1.0-rc.1`).
-2. Exécute les tests Go avec le détecteur de courses et `go vet` sur les runners Linux, macOS et Windows, ainsi que les tests des installateurs.
-3. Compile les six binaires sans CGO, avec la version intégrée. Chaque OS est compilé sur son runner ; l'autre architecture est compilée de manière croisée, sans exécution sur cette architecture.
-4. Publie une GitHub Release avec les binaires `axo-clash_{linux|darwin|windows}_{amd64|arm64}[.exe]`, `checksums.txt` et les deux scripts, après réussite de tous les builds.
-
-Un tag avec suffixe produit une **préversion**, ignorée par l'installation `latest`. Pour relancer la publication après un échec avant création de la release, utilise « Re-run failed jobs » ou lance manuellement le workflow en sélectionnant le tag existant. Une release déjà publiée n'est pas écrasée : publie un nouveau tag. Le workflow utilise le `GITHUB_TOKEN` intégré avec `contents: write` uniquement pour le job de publication ; aucun secret supplémentaire requis. Les règles GitHub du dépôt doivent autoriser ce job à créer des releases.
-
-Les commandes d'installation deviennent utilisables une fois les scripts poussés sur la branche par défaut et la première release stable publiée. Pour développer depuis les sources, Go 1.23 ou supérieur est requis ; les exemples `go run .` ci-dessous se lancent depuis ce dossier. Après installation, remplace `go run .` par `axo-clash`.
-
-## Relais du labo
-
-Connecte-toi au front, ouvre le labo et crée une session. Démarre tes bots puis lance :
-
-```sh
-go run . relay \
-  --bot alpha=http://127.0.0.1:9000/api/v1/bots \
-  --bot beta=http://127.0.0.1:9001/api/v1/bots
-```
-
-Saisis le code du labo dans l'invite masquée. Il n'est jamais passé en argument. Le CLI utilise `https://clash-api.axopen.cloud/api/v1` par défaut. Pour une autre instance, utilise `--api` ou `AXO_CLASH_API_URL` ; une URL sans chemin reçoit automatiquement le préfixe `/api/v1`. Le credential reste en mémoire jusqu'à la fin du processus. `Ctrl+C` ferme la connexion.
-
-Les URL des bots restent sur ton poste. Seules les adresses loopback sont acceptées (`localhost`, `127.0.0.1`, `::1`) ; les doublons normalisés sont refusés. Le relais accepte seulement `/info` et `/play`, sans redirection ni transmission des credentials cloud. Les réponses et messages sont bornés à 256 Kio. Une requête par bot et quatre appels simultanés par connexion au maximum ; `/info` dispose de 30 secondes ; chaque action `/play` conserve le budget serveur de deux secondes, réseau compris.
-
-Une déconnexion annule les appels en cours. La reconnexion utilise un délai croissant, sans rejouer les actions du combat interrompu. Une session révoquée ou expirée nécessite un nouveau code. Pour développer avec une API locale uniquement :
-
-```sh
-go run . relay --api http://localhost:8080/api/v1 --dev \
-  --bot alpha=http://127.0.0.1:9000/api/v1/bots
-```
-
-## Vérification du contrat
-
-Depuis ce dossier :
-
-```sh
-go run . check-bot -url http://localhost:9000/api/v1/bots
-
-# Répéter toute la suite pour détecter les erreurs intermittentes
-go run . check-bot -url http://localhost:9000/api/v1/bots -repeat 5
-
-# Construire le CLI
+git clone https://github.com/axo-clash/cli.git
+cd cli
 go build -o axo-clash .
-./axo-clash check-bot -url http://localhost:9000/api/v1/bots -timeout 2s
-```
-
-`-url` est l'URL de base exacte enregistrée pour le bot : le CLI ajoute `/info` et `/play`. Elle vaut `http://localhost:9000/api/v1/bots` par défaut. Un bot exposant directement `/info` et `/play` peut utiliser `-url http://localhost:9000`.
-
-Chaque passage effectue **41 vérifications** :
-
-- `GET /info` : HTTP **200**, réponse JSON avec `name` et `version` textuels et non vides.
-- 40 requêtes `POST /play` : HTTP **200**, réponse JSON avec une `action` de l'enum backend (`MOVE_*`, `SHOOT_*`, `UNKNOWN`).
-- Deux rôles (`FIRST_BOT`, `SECOND_BOT`), plateau 8 × 8 indexé `[y][x]`, cases vides, positions aux bords, champs optionnels omis et `null` explicites, listes d'items vides, quatre directions de projectiles, plusieurs projectiles sur une case et projectiles sur un bot.
-- Historique avec toutes les actions, actions interdites, dates ISO 8601, temps de réponse, vie basse et `faster`.
-- Variantes `contrat/…` pour toutes les valeurs d'état, statut, gagnant, raison de fin et raison d'échec. Elles testent le décodage du contrat complet ; le moteur appelle normalement `/play` pendant une partie en cours.
-
-Le délai maximal est de **30 secondes pour `/info`** et **2 secondes pour `/play`**, conformément au moteur. `-info-timeout` et `-timeout` permettent de les ajuster séparément pour le diagnostic. Les redirections sont des échecs : elles ne doivent pas masquer un endpoint absent. La suite continue après un échec et affiche le scénario, le statut HTTP ou l'erreur de réponse. Codes de sortie : **0** succès, **1** au moins un échec, **2** arguments invalides.
-
-Les scénarios suivent les DTO Java `GameBotDTO`, `GameDTO`, `BotDTO`, `CaseDTO`, `ItemDTO`, `ActionDTO`, les enums et `BotWebService` dans `application-backend/src/main/java/fr/axopen/axoclash`. `application.yml` configure `NON_NULL`, d'où les tests des champs omis. Les annotations de `BotController` fournissent le contrat OpenAPI des deux endpoints ; aucune spécification OpenAPI exportée n'est présente dans ce workspace.
-
-La réussite confirme les réponses observées pour ces scénarios. Elle ne prouve pas que le bot exploite chaque champ reçu ni qu'il répondra 200 à toute entrée possible. Les JSON malformés ne sont pas envoyés : le contrat autorise leur rejet en 400. `UNKNOWN` est accepté par le contrat, sans évaluer la pertinence tactique de l'action choisie.
-
-Tests du vérificateur avec serveurs HTTP locaux :
-
-```sh
-go test ./...
+go test -race -timeout 120s ./...
 go vet ./...
 ```
+
+Sous Windows, utilise `go build -o axo-clash.exe .`. Pour lancer une commande sans compiler manuellement, remplace `axo-clash` par `go run .`.
+
+Les tests Go utilisent des serveurs HTTP locaux. Les tests d'installation utilisent des téléchargements simulés :
+
+```sh
+python3 scripts/test-install.py
+```
+
+Sur Windows :
+
+```powershell
+./scripts/test-install.ps1
+```
+
+## Publication d'une version
+
+Après intégration des changements dans `main` :
+
+```sh
+git switch main
+git pull --ff-only
+git tag -a v0.1.0 -m "CLI v0.1.0"
+git push origin v0.1.0
+```
+
+Le workflow GitHub Actions exécute les tests Go et les tests des installateurs sur les runners Linux, macOS et Windows. Il compile les six binaires sans CGO, intègre le numéro de version et publie une release avec les binaires, les scripts et `checksums.txt` une fois tous les jobs réussis. Chaque système est compilé sur son runner ; l'autre architecture est compilée de manière croisée, sans exécution sur cette architecture.
+
+Les tags suivent `vMAJOR.MINOR.PATCH`. Un suffixe, par exemple `v0.2.0-rc.1`, produit une préversion. Aucun secret supplémentaire n'est nécessaire : seul le job de publication reçoit la permission `contents: write` du `GITHUB_TOKEN`.
+
+Pour reprendre une publication ayant échoué avant la création de la release, relance les jobs en échec ou lance manuellement le workflow sur le tag concerné. Une release existante n'est pas écrasée ; les versions suivantes utilisent un nouveau tag.
