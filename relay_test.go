@@ -203,3 +203,35 @@ func TestRelayRejectsOldConnectionBeforeCallingBot(t *testing.T) {
 	default:
 	}
 }
+
+func TestRelayAPIOriginIsNormalizedBeforePairing(t *testing.T) {
+	for _, raw := range []string{"", "/", "/api/v1", "/api/v1/"} {
+		t.Run(raw, func(t *testing.T) {
+			api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/api/v1/lab/relay-sessions/exchange" {
+					t.Errorf("wrong pairing path: %s", r.URL.Path)
+					w.WriteHeader(http.StatusUnauthorized)
+					return
+				}
+				if r.Header.Get("Authorization") != "" {
+					t.Error("pairing must use its one-time code, not a player token")
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.Write([]byte(`{"credential":"relay-secret","websocketUrl":"/api/v1/lab/relay"}`))
+			}))
+			defer api.Close()
+			base, err := normalizeRelayAPI(api.URL + raw)
+			if err != nil {
+				t.Fatal(err)
+			}
+			credential, socket, err := exchangeRelay(context.Background(), base.String(), "code", true)
+			if err != nil || credential != "relay-secret" || socket != strings.Replace(api.URL, "http", "ws", 1)+"/api/v1/lab/relay" {
+				t.Fatalf("exchange: %q %q %v", credential, socket, err)
+			}
+		})
+	}
+	base, err := normalizeRelayAPI(defaultRelayAPI)
+	if err != nil || base.String() != "https://clash-api.axopen.cloud/api/v1" {
+		t.Fatalf("default production API: %v %v", base, err)
+	}
+}

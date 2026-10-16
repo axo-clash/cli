@@ -7,12 +7,12 @@ Vérifie un bot déjà démarré ou relie tes bots locaux au labo cloud. Go 1.23
 Connecte-toi au front, ouvre le labo et crée une session. Démarre tes bots puis lance :
 
 ```sh
-go run . relay --api https://ton-api/api/v1 \
+go run . relay \
   --bot alpha=http://127.0.0.1:9000/api/v1/bots \
   --bot beta=http://127.0.0.1:9001/api/v1/bots
 ```
 
-Saisis le code du labo dans l'invite masquée. Il n'est jamais passé en argument. Tu peux définir `AXO_CLASH_API_URL` pour omettre `--api`. Le credential reste en mémoire jusqu'à la fin du processus. `Ctrl+C` ferme la connexion.
+Saisis le code du labo dans l'invite masquée. Il n'est jamais passé en argument. Le CLI utilise `https://clash-api.axopen.cloud/api/v1` par défaut. Pour une autre instance, utilise `--api` ou `AXO_CLASH_API_URL` ; une URL sans chemin reçoit automatiquement le préfixe `/api/v1`. Le credential reste en mémoire jusqu'à la fin du processus. `Ctrl+C` ferme la connexion.
 
 Les URL des bots restent sur ton poste. Seules les adresses loopback sont acceptées (`localhost`, `127.0.0.1`, `::1`) ; les doublons normalisés sont refusés. Le relais accepte seulement `/info` et `/play`, sans redirection ni transmission des credentials cloud. Les réponses et messages sont bornés à 256 Kio. Une requête par bot et quatre appels simultanés par connexion au maximum ; chaque action conserve le budget serveur de deux secondes, réseau compris.
 

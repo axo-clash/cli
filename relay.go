@@ -24,6 +24,7 @@ import (
 )
 
 const relayMessageLimit = 256 << 10
+const defaultRelayAPI = "https://clash-api.axopen.cloud/api/v1"
 
 type botFlags []string
 
@@ -146,8 +147,11 @@ func maskedPairingCode(out io.Writer) (string, error) {
 func runRelay(args []string, out io.Writer) int {
 	f := flag.NewFlagSet("relay", flag.ContinueOnError)
 	f.SetOutput(out)
-	defaultAPI := os.Getenv("AXO_CLASH_API_URL")
-	api := f.String("api", defaultAPI, "Base API HTTPS incluant /api/v1 (ou AXO_CLASH_API_URL)")
+	defaultAPI := strings.TrimSpace(os.Getenv("AXO_CLASH_API_URL"))
+	if defaultAPI == "" {
+		defaultAPI = defaultRelayAPI
+	}
+	api := f.String("api", defaultAPI, "API HTTPS (défaut : https://clash-api.axopen.cloud ; ou AXO_CLASH_API_URL)")
 	dev := f.Bool("dev", false, "Autoriser une API HTTP loopback pour le développement")
 	var declarations botFlags
 	f.Var(&declarations, "bot", "Bot loopback alias=http://127.0.0.1:9000/api/v1/bots (répétable)")
@@ -157,7 +161,7 @@ func runRelay(args []string, out io.Writer) int {
 		}
 		return 2
 	}
-	u, err := url.Parse(*api)
+	u, err := normalizeRelayAPI(*api)
 	if err != nil || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || f.NArg() != 0 {
 		fmt.Fprintln(out, "Base API HTTPS valide requise avec --api ou AXO_CLASH_API_URL.")
 		return 2
@@ -229,6 +233,19 @@ func runRelay(args []string, out io.Writer) int {
 		}
 	}
 	return 0
+}
+
+// Accept the public origin as well as an explicit API prefix.
+func normalizeRelayAPI(raw string) (*url.URL, error) {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return nil, err
+	}
+	u.Path = strings.TrimRight(u.Path, "/")
+	if u.Path == "" {
+		u.Path = "/api/v1"
+	}
+	return u, nil
 }
 
 func exchangeRelay(ctx context.Context, base, code string, dev bool) (string, string, error) {
