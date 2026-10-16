@@ -45,14 +45,14 @@ Tu peux télécharger les scripts pour les lire avant exécution, ou récupérer
 Linux / macOS :
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/axo-clash/cli/main/install.sh | AXO_CLASH_VERSION=v0.1.0 INSTALL_DIR="$HOME/.local/bin" bash
+curl -fsSL https://raw.githubusercontent.com/axo-clash/cli/main/install.sh | AXO_CLASH_VERSION=v0.1.1 INSTALL_DIR="$HOME/.local/bin" bash
 ```
 
 Windows :
 
 ```powershell
 Invoke-WebRequest https://raw.githubusercontent.com/axo-clash/cli/main/install.ps1 -OutFile install.ps1
-./install.ps1 -Version v0.1.0 -InstallDir "$HOME\bin"
+./install.ps1 -Version v0.1.1 -InstallDir "$HOME\bin"
 ```
 
 Une préversion peut être installée explicitement en précisant son tag. Elle n'est pas proposée par l'installation automatique de la dernière version stable.
@@ -185,8 +185,8 @@ Après intégration des changements dans `main` :
 ```sh
 git switch main
 git pull --ff-only
-git tag -a v0.1.0 -m "CLI v0.1.0"
-git push origin v0.1.0
+git tag -a v0.1.1 -m "CLI v0.1.1"
+git push origin v0.1.1
 ```
 
 Le workflow GitHub Actions exécute les tests Go et les tests des installateurs sur les runners Linux, macOS et Windows. Il compile les six binaires sans CGO, intègre le numéro de version et publie une release avec les binaires, les scripts et `checksums.txt` une fois tous les jobs réussis. Chaque système est compilé sur son runner ; l'autre architecture est compilée de manière croisée, sans exécution sur cette architecture.
