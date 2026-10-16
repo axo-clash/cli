@@ -14,7 +14,7 @@ go run . relay \
 
 Saisis le code du labo dans l'invite masquée. Il n'est jamais passé en argument. Le CLI utilise `https://clash-api.axopen.cloud/api/v1` par défaut. Pour une autre instance, utilise `--api` ou `AXO_CLASH_API_URL` ; une URL sans chemin reçoit automatiquement le préfixe `/api/v1`. Le credential reste en mémoire jusqu'à la fin du processus. `Ctrl+C` ferme la connexion.
 
-Les URL des bots restent sur ton poste. Seules les adresses loopback sont acceptées (`localhost`, `127.0.0.1`, `::1`) ; les doublons normalisés sont refusés. Le relais accepte seulement `/info` et `/play`, sans redirection ni transmission des credentials cloud. Les réponses et messages sont bornés à 256 Kio. Une requête par bot et quatre appels simultanés par connexion au maximum ; chaque action conserve le budget serveur de deux secondes, réseau compris.
+Les URL des bots restent sur ton poste. Seules les adresses loopback sont acceptées (`localhost`, `127.0.0.1`, `::1`) ; les doublons normalisés sont refusés. Le relais accepte seulement `/info` et `/play`, sans redirection ni transmission des credentials cloud. Les réponses et messages sont bornés à 256 Kio. Une requête par bot et quatre appels simultanés par connexion au maximum ; `/info` dispose de 30 secondes ; chaque action `/play` conserve le budget serveur de deux secondes, réseau compris.
 
 Une déconnexion annule les appels en cours. La reconnexion utilise un délai croissant, sans rejouer les actions du combat interrompu. Une session révoquée ou expirée nécessite un nouveau code. Pour développer avec une API locale uniquement :
 
@@ -48,7 +48,7 @@ Chaque passage effectue **41 vérifications** :
 - Historique avec toutes les actions, actions interdites, dates ISO 8601, temps de réponse, vie basse et `faster`.
 - Variantes `contrat/…` pour toutes les valeurs d'état, statut, gagnant, raison de fin et raison d'échec. Elles testent le décodage du contrat complet ; le moteur appelle normalement `/play` pendant une partie en cours.
 
-Le délai maximal est de **2 secondes par requête**, conformément à `GameExecutionService`. Les redirections sont des échecs : elles ne doivent pas masquer un endpoint absent. La suite continue après un échec et affiche le scénario, le statut HTTP ou l'erreur de réponse. Codes de sortie : **0** succès, **1** au moins un échec, **2** arguments invalides.
+Le délai maximal est de **30 secondes pour `/info`** et **2 secondes pour `/play`**, conformément au moteur. `-info-timeout` et `-timeout` permettent de les ajuster séparément pour le diagnostic. Les redirections sont des échecs : elles ne doivent pas masquer un endpoint absent. La suite continue après un échec et affiche le scénario, le statut HTTP ou l'erreur de réponse. Codes de sortie : **0** succès, **1** au moins un échec, **2** arguments invalides.
 
 Les scénarios suivent les DTO Java `GameBotDTO`, `GameDTO`, `BotDTO`, `CaseDTO`, `ItemDTO`, `ActionDTO`, les enums et `BotWebService` dans `application-backend/src/main/java/fr/axopen/axoclash`. `application.yml` configure `NON_NULL`, d'où les tests des champs omis. Les annotations de `BotController` fournissent le contrat OpenAPI des deux endpoints ; aucune spécification OpenAPI exportée n'est présente dans ce workspace.
 

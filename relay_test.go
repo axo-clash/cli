@@ -138,7 +138,7 @@ func TestRelayTransportsTwoBindingsAndCorrelatesResponses(t *testing.T) {
 			if i == 1 {
 				operation = "PLAY"
 			}
-			wsjson.Write(ctx, c, relayMessage{Type: "bot.request", ProtocolVersion: 1, ConnectionID: "conn-1", RequestID: binding, BindingID: binding, Operation: operation, TimeoutMS: 2000, GameID: 1, GameRunID: "run-1", Seat: "FIRST_BOT", Payload: json.RawMessage(`{}`)})
+			wsjson.Write(ctx, c, relayMessage{Type: "bot.request", ProtocolVersion: 1, ConnectionID: "conn-1", RequestID: binding, BindingID: binding, Operation: operation, TimeoutMS: relayTimeoutLimit(operation), GameID: 1, GameRunID: "run-1", Seat: "FIRST_BOT", Payload: json.RawMessage(`{}`)})
 		}
 		seen := map[string]bool{}
 		for i := 0; i < 2; i++ {
@@ -233,5 +233,30 @@ func TestRelayAPIOriginIsNormalizedBeforePairing(t *testing.T) {
 	base, err := normalizeRelayAPI(defaultRelayAPI)
 	if err != nil || base.String() != "https://clash-api.axopen.cloud/api/v1" {
 		t.Fatalf("default production API: %v %v", base, err)
+	}
+}
+
+func TestInfoCanExceedTwoSecondsWhilePlayRetainsItsBudget(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/info") {
+			time.Sleep(2100 * time.Millisecond)
+			w.Write([]byte(`{"name":"slow-info","version":"1"}`))
+			return
+		}
+		select {
+		case <-r.Context().Done():
+		case <-time.After(100 * time.Millisecond):
+		}
+	}))
+	defer server.Close()
+	client := loopbackClient()
+	defer client.CloseIdleConnections()
+	status, _, _, code := invokeLocal(context.Background(), client, server.URL, "INFO", nil, relayInfoTimeoutMS)
+	if status != 200 || code != "" {
+		t.Fatalf("slow info rejected: status=%d code=%s", status, code)
+	}
+	_, _, _, code = invokeLocal(context.Background(), client, server.URL, "PLAY", json.RawMessage(`{}`), 25)
+	if code != "LOCAL_TIMEOUT" {
+		t.Fatalf("play budget ignored: %s", code)
 	}
 }

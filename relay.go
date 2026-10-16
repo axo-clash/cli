@@ -24,6 +24,8 @@ import (
 )
 
 const relayMessageLimit = 256 << 10
+const relayInfoTimeoutMS int64 = 30_000
+const relayPlayTimeoutMS int64 = 2_000
 const defaultRelayAPI = "https://clash-api.axopen.cloud/api/v1"
 
 type botFlags []string
@@ -112,7 +114,7 @@ func relayBots(values []string) ([]localRelayBot, error) {
 }
 
 func loopbackClient() *http.Client {
-	return &http.Client{Timeout: 2 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }, Transport: &http.Transport{
+	return &http.Client{Timeout: time.Duration(relayInfoTimeoutMS) * time.Millisecond, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }, Transport: &http.Transport{
 		Proxy: nil,
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			host, _, err := net.SplitHostPort(addr)
@@ -186,7 +188,7 @@ func runRelay(args []string, out io.Writer) int {
 	local := loopbackClient()
 	defer local.CloseIdleConnections()
 	for i := range bots {
-		status, data, _, code := invokeLocal(ctx, local, bots[i].base, "INFO", nil, 2000)
+		status, data, _, code := invokeLocal(ctx, local, bots[i].base, "INFO", nil, relayInfoTimeoutMS)
 		if code != "" || status != 200 {
 			fmt.Fprintf(out, "Bot %s : /info ne répond pas au contrat.\n", bots[i].Alias)
 			return 1
@@ -291,9 +293,16 @@ func exchangeRelay(ctx context.Context, base, code string, dev bool) (string, st
 	return result.Credential, u.String(), nil
 }
 
+func relayTimeoutLimit(operation string) int64 {
+	if operation == "INFO" {
+		return relayInfoTimeoutMS
+	}
+	return relayPlayTimeoutMS
+}
+
 func invokeLocal(ctx context.Context, client *http.Client, base, operation string, payload json.RawMessage, timeout int64) (int, json.RawMessage, int64, string) {
-	if timeout <= 0 || timeout > 2000 {
-		timeout = 2000
+	if timeout <= 0 || timeout > relayTimeoutLimit(operation) {
+		timeout = relayTimeoutLimit(operation)
 	}
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Millisecond)
 	defer cancel()
@@ -493,7 +502,7 @@ func connectRelay(parent context.Context, socketURL, credential string, bots []l
 			mu.Unlock()
 		case "bot.request":
 			bot, ok := bindings[msg.BindingID]
-			if connectionID == "" || msg.ConnectionID != connectionID || !ok || msg.RequestID == "" || len(msg.RequestID) > 128 || msg.TimeoutMS <= 0 || msg.TimeoutMS > 2000 || (msg.Operation != "INFO" && msg.Operation != "PLAY") {
+			if connectionID == "" || msg.ConnectionID != connectionID || !ok || msg.RequestID == "" || len(msg.RequestID) > 128 || msg.TimeoutMS <= 0 || msg.TimeoutMS > relayTimeoutLimit(msg.Operation) || (msg.Operation != "INFO" && msg.Operation != "PLAY") {
 				return errors.New("requête relay invalide")
 			}
 			if msg.Operation == "PLAY" && (msg.GameID <= 0 || msg.GameRunID == "" || (msg.Seat != "FIRST_BOT" && msg.Seat != "SECOND_BOT") || len(msg.Payload) == 0) {

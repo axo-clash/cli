@@ -28,7 +28,8 @@ func run(args []string, out io.Writer) int {
 	flags := flag.NewFlagSet("axo-clash", flag.ContinueOnError)
 	flags.SetOutput(out)
 	base := flags.String("url", "http://localhost:9000/api/v1/bots", "URL de base du bot, incluant /api/v1/bots")
-	timeout := flags.Duration("timeout", 2*time.Second, "Délai maximal par requête (ex. 2s)")
+	timeout := flags.Duration("timeout", 2*time.Second, "Délai maximal pour /play (ex. 2s)")
+	infoTimeout := flags.Duration("info-timeout", 30*time.Second, "Délai maximal pour /info (ex. 30s)")
 	repeat := flags.Int("repeat", 1, "Nombre de passages de chaque scénario")
 	flags.Usage = func() {
 		fmt.Fprintln(out, "Usage : axo-clash check-bot [options]")
@@ -44,7 +45,7 @@ func run(args []string, out io.Writer) int {
 		return 2
 	}
 	u, err := url.Parse(*base)
-	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.RawQuery != "" || u.Fragment != "" || u.User != nil || flags.NArg() != 0 || *timeout <= 0 || *repeat <= 0 {
+	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.RawQuery != "" || u.Fragment != "" || u.User != nil || flags.NArg() != 0 || *timeout <= 0 || *infoTimeout <= 0 || *repeat <= 0 {
 		fmt.Fprintln(out, "Paramètres invalides : URL HTTP(S) sans identifiants/query/fragment, timeout et repeat strictement positifs requis.")
 		return 2
 	}
@@ -60,6 +61,10 @@ func run(args []string, out io.Writer) int {
 		for _, s := range cases {
 			total++
 			start := time.Now()
+			client.Timeout = *timeout
+			if s.path == "/info" {
+				client.Timeout = *infoTimeout
+			}
 			err := check(client, strings.TrimRight(u.String(), "/"), s)
 			if err != nil {
 				failed++

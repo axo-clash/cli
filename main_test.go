@@ -161,7 +161,7 @@ func TestCheckTimeout(t *testing.T) {
 func TestRunInvalidArguments(t *testing.T) {
 	for _, args := range [][]string{
 		{"-url", "://invalid"}, {"-url", "ftp://localhost"},
-		{"-url", "http://localhost?query=1"}, {"-timeout", "0s"},
+		{"-url", "http://localhost?query=1"}, {"-timeout", "0s"}, {"-info-timeout", "0s"},
 		{"-repeat", "0"}, {"unexpected-command"},
 	} {
 		var output bytes.Buffer
