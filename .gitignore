@@ -1,0 +1,6 @@
+.DS_Store
+/cli
+/axo-clash
+/axo-clash-cli
+/dist/
+/coverage.out
