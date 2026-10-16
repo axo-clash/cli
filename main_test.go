@@ -161,12 +161,21 @@ func TestCheckTimeout(t *testing.T) {
 func TestRunInvalidArguments(t *testing.T) {
 	for _, args := range [][]string{
 		{"-url", "://invalid"}, {"-url", "ftp://localhost"},
-		{"-url", "http://localhost?query=1"}, {"-timeout", "0s"},
+		{"-url", "http://localhost?query=1"}, {"-timeout", "0s"}, {"-info-timeout", "0s"},
 		{"-repeat", "0"}, {"unexpected-command"},
 	} {
 		var output bytes.Buffer
 		if code := run(args, &output); code != 2 {
 			t.Errorf("%v: code=%d", args, code)
+		}
+	}
+}
+
+func TestRunVersion(t *testing.T) {
+	for _, arg := range []string{"version", "--version"} {
+		var output bytes.Buffer
+		if code := run([]string{arg}, &output); code != 0 || output.String() != "axo-clash "+version+"\n" {
+			t.Fatalf("version: code=%d output=%q", code, output.String())
 		}
 	}
 }

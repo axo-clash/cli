@@ -24,6 +24,9 @@ import (
 )
 
 const relayMessageLimit = 256 << 10
+const relayInfoTimeoutMS int64 = 30_000
+const relayPlayTimeoutMS int64 = 2_000
+const defaultRelayAPI = "https://clash-api.axopen.cloud/api/v1"
 
 type botFlags []string
 
@@ -111,7 +114,7 @@ func relayBots(values []string) ([]localRelayBot, error) {
 }
 
 func loopbackClient() *http.Client {
-	return &http.Client{Timeout: 2 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }, Transport: &http.Transport{
+	return &http.Client{Timeout: time.Duration(relayInfoTimeoutMS) * time.Millisecond, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }, Transport: &http.Transport{
 		Proxy: nil,
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			host, _, err := net.SplitHostPort(addr)
@@ -146,8 +149,11 @@ func maskedPairingCode(out io.Writer) (string, error) {
 func runRelay(args []string, out io.Writer) int {
 	f := flag.NewFlagSet("relay", flag.ContinueOnError)
 	f.SetOutput(out)
-	defaultAPI := os.Getenv("AXO_CLASH_API_URL")
-	api := f.String("api", defaultAPI, "Base API HTTPS incluant /api/v1 (ou AXO_CLASH_API_URL)")
+	defaultAPI := strings.TrimSpace(os.Getenv("AXO_CLASH_API_URL"))
+	if defaultAPI == "" {
+		defaultAPI = defaultRelayAPI
+	}
+	api := f.String("api", defaultAPI, "API HTTPS (défaut : https://clash-api.axopen.cloud ; ou AXO_CLASH_API_URL)")
 	dev := f.Bool("dev", false, "Autoriser une API HTTP loopback pour le développement")
 	var declarations botFlags
 	f.Var(&declarations, "bot", "Bot loopback alias=http://127.0.0.1:9000/api/v1/bots (répétable)")
@@ -157,7 +163,7 @@ func runRelay(args []string, out io.Writer) int {
 		}
 		return 2
 	}
-	u, err := url.Parse(*api)
+	u, err := normalizeRelayAPI(*api)
 	if err != nil || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || f.NArg() != 0 {
 		fmt.Fprintln(out, "Base API HTTPS valide requise avec --api ou AXO_CLASH_API_URL.")
 		return 2
@@ -182,7 +188,7 @@ func runRelay(args []string, out io.Writer) int {
 	local := loopbackClient()
 	defer local.CloseIdleConnections()
 	for i := range bots {
-		status, data, _, code := invokeLocal(ctx, local, bots[i].base, "INFO", nil, 2000)
+		status, data, _, code := invokeLocal(ctx, local, bots[i].base, "INFO", nil, relayInfoTimeoutMS)
 		if code != "" || status != 200 {
 			fmt.Fprintf(out, "Bot %s : /info ne répond pas au contrat.\n", bots[i].Alias)
 			return 1
@@ -231,6 +237,19 @@ func runRelay(args []string, out io.Writer) int {
 	return 0
 }
 
+// Accept the public origin as well as an explicit API prefix.
+func normalizeRelayAPI(raw string) (*url.URL, error) {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return nil, err
+	}
+	u.Path = strings.TrimRight(u.Path, "/")
+	if u.Path == "" {
+		u.Path = "/api/v1"
+	}
+	return u, nil
+}
+
 func exchangeRelay(ctx context.Context, base, code string, dev bool) (string, string, error) {
 	data, _ := json.Marshal(map[string]string{"code": code})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, base+"/lab/relay-sessions/exchange", bytes.NewReader(data))
@@ -274,9 +293,16 @@ func exchangeRelay(ctx context.Context, base, code string, dev bool) (string, st
 	return result.Credential, u.String(), nil
 }
 
+func relayTimeoutLimit(operation string) int64 {
+	if operation == "INFO" {
+		return relayInfoTimeoutMS
+	}
+	return relayPlayTimeoutMS
+}
+
 func invokeLocal(ctx context.Context, client *http.Client, base, operation string, payload json.RawMessage, timeout int64) (int, json.RawMessage, int64, string) {
-	if timeout <= 0 || timeout > 2000 {
-		timeout = 2000
+	if timeout <= 0 || timeout > relayTimeoutLimit(operation) {
+		timeout = relayTimeoutLimit(operation)
 	}
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Millisecond)
 	defer cancel()
@@ -476,7 +502,7 @@ func connectRelay(parent context.Context, socketURL, credential string, bots []l
 			mu.Unlock()
 		case "bot.request":
 			bot, ok := bindings[msg.BindingID]
-			if connectionID == "" || msg.ConnectionID != connectionID || !ok || msg.RequestID == "" || len(msg.RequestID) > 128 || msg.TimeoutMS <= 0 || msg.TimeoutMS > 2000 || (msg.Operation != "INFO" && msg.Operation != "PLAY") {
+			if connectionID == "" || msg.ConnectionID != connectionID || !ok || msg.RequestID == "" || len(msg.RequestID) > 128 || msg.TimeoutMS <= 0 || msg.TimeoutMS > relayTimeoutLimit(msg.Operation) || (msg.Operation != "INFO" && msg.Operation != "PLAY") {
 				return errors.New("requête relay invalide")
 			}
 			if msg.Operation == "PLAY" && (msg.GameID <= 0 || msg.GameRunID == "" || (msg.Seat != "FIRST_BOT" && msg.Seat != "SECOND_BOT") || len(msg.Payload) == 0) {
