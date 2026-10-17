@@ -25,6 +25,13 @@ func main() {
 
 // run is kept separate so future CLI commands can reuse the checker.
 func run(args []string, out io.Writer) int {
+	if len(args) == 1 && args[0] == "export-contract" {
+		if err := exportContract(out); err != nil {
+			fmt.Fprintln(out, err)
+			return 1
+		}
+		return 0
+	}
 	if len(args) == 1 && (args[0] == "version" || args[0] == "--version") {
 		fmt.Fprintf(out, "axo-clash %s\n", version)
 		return 0
@@ -144,6 +151,26 @@ func check(client *http.Client, base string, s scenario) error {
 			return fmt.Errorf("action inconnue %q ; valeurs acceptées : %s", value, strings.Join(actions, ", "))
 		}
 	}
+	if s.method == http.MethodPost {
+		return validateTrapAction(result, body)
+	}
+	return nil
+}
+
+// Ordinary actions retain their old wire format; PLACE_TRAP requires an integer board target.
+func validateTrapCoordinates(result map[string]json.RawMessage) error {
+	var action string
+	_ = json.Unmarshal(result["action"], &action)
+	if action != "PLACE_TRAP" {
+		return nil
+	}
+	var target struct {
+		X *int `json:"x"`
+		Y *int `json:"y"`
+	}
+	if json.Unmarshal(result["coordinates"], &target) != nil || target.X == nil || target.Y == nil || *target.X < 0 || *target.X > 7 || *target.Y < 0 || *target.Y > 7 {
+		return fmt.Errorf("PLACE_TRAP exige coordinates avec x et y entiers entre 0 et 7")
+	}
 	return nil
 }
 
@@ -154,4 +181,40 @@ func knownAction(value string) bool {
 		}
 	}
 	return false
+}
+
+// Trap availability is a protocol rule; tactical choices of ordinary moves/shots are not judged here.
+func validateTrapAction(result map[string]json.RawMessage, payload []byte) error {
+	if err := validateTrapCoordinates(result); err != nil {
+		return err
+	}
+	var action string
+	_ = json.Unmarshal(result["action"], &action)
+	if action != "PLACE_TRAP" || len(payload) == 0 {
+		return nil
+	}
+	var request struct {
+		Game struct {
+			CurrentTurn *int `json:"currentTurn"`
+		} `json:"game"`
+		Bot struct {
+			Data struct {
+				NextTrapTurn *int `json:"nextTrapTurn"`
+			} `json:"data"`
+		} `json:"bot"`
+	}
+	if err := json.Unmarshal(payload, &request); err != nil {
+		return err
+	}
+	if request.Game.CurrentTurn == nil {
+		return nil
+	}
+	next := 10
+	if request.Bot.Data.NextTrapTurn != nil && *request.Bot.Data.NextTrapTurn > next {
+		next = *request.Bot.Data.NextTrapTurn
+	}
+	if *request.Game.CurrentTurn+1 < next {
+		return fmt.Errorf("PLACE_TRAP indisponible avant le tour %d", next)
+	}
+	return nil
 }

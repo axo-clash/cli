@@ -260,3 +260,26 @@ func TestInfoCanExceedTwoSecondsWhilePlayRetainsItsBudget(t *testing.T) {
 		t.Fatalf("play budget ignored: %s", code)
 	}
 }
+
+func TestRelayPreservesTrapTargetsAndRejectsIncompleteOnes(t *testing.T) {
+	for _, body := range []string{
+		`{"action":"PLACE_TRAP","coordinates":{"x":3,"y":4}}`,
+		`{"action":"PLACE_TRAP","coordinates":{"x":3}}`,
+	} {
+		bot := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(body))
+		}))
+		client := loopbackClient()
+		status, payload, _, code := invokeLocal(context.Background(), client, bot.URL, "PLAY", json.RawMessage(`{}`), 2000)
+		client.CloseIdleConnections()
+		bot.Close()
+		if strings.Contains(body, `"y"`) {
+			if status != 200 || code != "" || string(payload) != body {
+				t.Fatalf("trap lost: %d %s %s", status, code, payload)
+			}
+		} else if code != "INVALID_RESPONSE" {
+			t.Fatalf("accepted incomplete trap: %s", payload)
+		}
+	}
+}

@@ -1,9 +1,12 @@
 package main
 
-import "net/http"
+import (
+	"fmt"
+	"net/http"
+)
 
 // Values and fields mirror the backend DTOs and enums, not the older Rust templates.
-var actions = []string{"MOVE_LEFT", "MOVE_RIGHT", "MOVE_UP", "MOVE_DOWN", "SHOOT_LEFT", "SHOOT_RIGHT", "SHOOT_UP", "SHOOT_DOWN", "UNKNOWN"}
+var actions = []string{"MOVE_LEFT", "MOVE_RIGHT", "MOVE_UP", "MOVE_DOWN", "SHOOT_LEFT", "SHOOT_RIGHT", "SHOOT_UP", "SHOOT_DOWN", "PLACE_TRAP", "UNKNOWN"}
 var bullets = []string{"BULLET_LEFT", "BULLET_RIGHT", "BULLET_UP", "BULLET_DOWN"}
 
 type object = map[string]any
@@ -40,14 +43,78 @@ func scenarios() []scenario {
 						cell["content"] = nil
 					}
 					cell["items"] = nil
+					cell["trap"] = nil
 				}
 			}
+		})
+
+		add(label+"/piege-en-armement", role, func(game, bot object) {
+			game["currentTurn"] = 10
+			bot["data"].(object)["nextTrapTurn"] = 20
+			game["board"].([][]object)[2][3]["trap"] = object{"placedBy": "FIRST_BOT", "placedAtTurn": 10, "armedFromTurn": 11, "expiresAfterTurn": 20}
+		})
+		add(label+"/piege-arme-sous-bot", role, func(game, bot object) {
+			game["currentTurn"] = 19
+			bot["data"].(object)["nextTrapTurn"] = 20
+			pos := bot["coordinates"].(object)
+			game["board"].([][]object)[pos["y"].(int)][pos["x"].(int)]["trap"] = object{"placedBy": "SECOND_BOT", "placedAtTurn": 10, "armedFromTurn": 11, "expiresAfterTurn": 20}
+		})
+		add(label+"/recharge-et-piege-remplace", role, func(game, bot object) {
+			game["currentTurn"] = 20
+			bot["data"].(object)["nextTrapTurn"] = 30
+			game["board"].([][]object)[3][3]["trap"] = object{"placedBy": "SECOND_BOT", "placedAtTurn": 20, "armedFromTurn": 21, "expiresAfterTurn": 30}
+			game["actions"] = []object{{"id": 1, "botId": 1, "action": "PLACE_TRAP", "coordinates": object{"x": 3, "y": 3}, "forbidden": false, "executionTimeMs": 2, "createdDate": "2026-10-17T12:00:00Z"}}
+		})
+		for _, turn := range []int{69, 70, 74, 75, 79, 80, 84, 85, 89, 90, 94, 95, 99, 100, 104, 105} {
+			add(fmt.Sprintf("%s/zone-rouge-tour-%d", label, turn), role, func(game, bot object) {
+				game["currentTurn"] = turn
+				limit := 100
+				if turn >= 100 {
+					limit = 120
+				}
+				game["rules"] = object{"startingLife": 10, "responseTimeoutMs": 2000, "maxTurns": limit, "maxForbiddenActions": 10}
+				for _, seat := range []object{game["firstBot"].(object), game["secondBot"].(object)} {
+					seat["data"].(object)["nextTrapTurn"] = 10
+				}
+			})
+		}
+		add(label+"/pose-disponible-tour-10", role, func(game, bot object) {
+			game["currentTurn"] = 9
+			for _, seat := range []object{game["firstBot"].(object), game["secondBot"].(object)} {
+				seat["data"].(object)["nextTrapTurn"] = 10
+			}
+		})
+		add(label+"/piege-propre-sous-bot-avec-tirs", role, func(game, bot object) {
+			game["currentTurn"] = 11
+			bot["data"].(object)["nextTrapTurn"] = 20
+			pos := bot["coordinates"].(object)
+			cell := game["board"].([][]object)[pos["y"].(int)][pos["x"].(int)]
+			cell["trap"] = object{"placedBy": bot["botType"], "placedAtTurn": 10, "armedFromTurn": 11, "expiresAfterTurn": 20}
+			cell["items"] = []object{{"type": "BULLET_RIGHT", "owner": game["firstBot"]}, {"type": "BULLET_UP", "owner": game["secondBot"]}}
+		})
+		add(label+"/pieges-des-deux-bots", role, func(game, bot object) {
+			game["currentTurn"] = 19
+			for _, key := range []string{"firstBot", "secondBot"} {
+				seat := game[key].(object)
+				seat["data"].(object)["nextTrapTurn"] = 20
+				pos := seat["coordinates"].(object)
+				game["board"].([][]object)[pos["y"].(int)][pos["x"].(int)]["trap"] = object{"placedBy": seat["botType"], "placedAtTurn": 10, "armedFromTurn": 11, "expiresAfterTurn": 20}
+			}
+		})
+		add(label+"/piege-expire-et-recharge-disponible", role, func(game, bot object) {
+			game["currentTurn"] = 20
+			bot["data"].(object)["nextTrapTurn"] = 20
+			game["board"].([][]object)[3][3]["trap"] = nil
 		})
 		add(label+"/historique-complet", role, func(game, bot object) {
 			game["currentTurn"] = 10
 			var history []object
 			for i, action := range actions {
-				history = append(history, object{"id": i + 1, "botId": i%2 + 1, "action": action, "forbidden": action == "UNKNOWN", "executionTimeMs": 23, "createdDate": "2026-10-10T12:00:00.123456789Z"})
+				entry := object{"id": i + 1, "botId": i%2 + 1, "action": action, "forbidden": action == "UNKNOWN", "executionTimeMs": 23, "createdDate": "2026-10-10T12:00:00.123456789Z"}
+				if action == "PLACE_TRAP" {
+					entry["coordinates"] = object{"x": 3, "y": 4}
+				}
+				history = append(history, entry)
 			}
 			game["actions"] = history
 			for _, b := range []object{game["firstBot"].(object), game["secondBot"].(object)} {

@@ -65,7 +65,7 @@ func TestRunCompatibleBot(t *testing.T) {
 	defer server.Close()
 	var output bytes.Buffer
 	code := run([]string{"check-bot", "-url", server.URL + "/api/v1/bots/", "-repeat", "2"}, &output)
-	if code != 0 || infoCalls != 2 || playCalls != 80 || !roles["FIRST_BOT"] || !roles["SECOND_BOT"] {
+	if code != 0 || infoCalls != 2 || playCalls != 2*len(scenarios()) || !roles["FIRST_BOT"] || !roles["SECOND_BOT"] {
 		t.Fatalf("code=%d info=%d play=%d roles=%v\n%s", code, infoCalls, playCalls, roles, output.String())
 	}
 }
@@ -85,6 +85,10 @@ func TestCheckRejectsInvalidResponses(t *testing.T) {
 		{"null action", "POST", `{"action":null}`, "application/json", `champ "action"`, 200},
 		{"numeric action", "POST", `{"action":1}`, "application/json", `champ "action"`, 200},
 		{"unknown action", "POST", `{"action":"JUMP"}`, "application/json", "action inconnue", 200},
+		{"trap missing coordinates", "POST", `{"action":"PLACE_TRAP"}`, "application/json", "coordinates", 200},
+		{"trap partial target", "POST", `{"action":"PLACE_TRAP","coordinates":{"x":2}}`, "application/json", "coordinates", 200},
+		{"trap outside board", "POST", `{"action":"PLACE_TRAP","coordinates":{"x":8,"y":0}}`, "application/json", "coordinates", 200},
+		{"trap fractional target", "POST", `{"action":"PLACE_TRAP","coordinates":{"x":2.5,"y":0}}`, "application/json", "coordinates", 200},
 		{"info version missing", "GET", `{"name":"Test"}`, "application/json", `champ "version"`, 200},
 		{"info name blank", "GET", `{"name":" ","version":"1"}`, "application/json", `champ "name"`, 200},
 		{"too big", "POST", strings.Repeat(" ", maxResponseBytes+1), "application/json", "dépassant", 200},
@@ -131,7 +135,7 @@ func TestRunDetectsParserFailureAndContinues(t *testing.T) {
 	}))
 	defer server.Close()
 	var output bytes.Buffer
-	if code := run([]string{"-url", server.URL}, &output); code != 1 || calls != 41 || !strings.Contains(output.String(), "missing lastActionTimeMs") {
+	if code := run([]string{"-url", server.URL}, &output); code != 1 || calls != len(scenarios())+1 || !strings.Contains(output.String(), "missing lastActionTimeMs") {
 		t.Fatalf("code=%d calls=%d\n%s", code, calls, output.String())
 	}
 }
@@ -177,5 +181,16 @@ func TestRunVersion(t *testing.T) {
 		if code := run([]string{arg}, &output); code != 0 || output.String() != "axo-clash "+version+"\n" {
 			t.Fatalf("version: code=%d output=%q", code, output.String())
 		}
+	}
+}
+
+func TestCheckAcceptsTrapCoordinates(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"action":"PLACE_TRAP","coordinates":{"x":3,"y":4}}`)
+	}))
+	defer server.Close()
+	if err := check(server.Client(), server.URL, scenario{method: http.MethodPost, path: "/play"}); err != nil {
+		t.Fatal(err)
 	}
 }

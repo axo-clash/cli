@@ -346,6 +346,9 @@ func invokeLocal(ctx context.Context, client *http.Client, base, operation strin
 				return 0, nil, duration, "INVALID_RESPONSE"
 			}
 		}
+		if operation == "PLAY" && validateTrapAction(object, payload) != nil {
+			return 0, nil, duration, "INVALID_RESPONSE"
+		}
 	}
 	return resp.StatusCode, b, duration, ""
 }

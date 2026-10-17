@@ -2,7 +2,7 @@
 
 Teste ton bot et connecte-le au laboratoire [AXO Clash](https://clash.axopen.cloud/) depuis ton terminal.
 
-- **`check-bot`** vérifie les réponses HTTP de ton bot avec 41 contrôles de compatibilité.
+- **`check-bot`** vérifie les réponses HTTP de ton bot avec 87 contrôles de compatibilité.
 - **`relay`** relie tes bots locaux au labo pour lancer des combats depuis le site.
 
 [Site AXO Clash](https://clash.axopen.cloud/) · [Labo](https://clash.axopen.cloud/lab) · [Téléchargements](https://github.com/axo-clash/cli/releases)
@@ -134,7 +134,7 @@ axo-clash check-bot --url http://127.0.0.1:9000/api/v1/bots --repeat 5
 
 Si ton bot expose `/info` et `/play` directement à la racine, utilise par exemple `--url http://localhost:9000`.
 
-Chaque passage effectue **41 contrôles** : une requête `GET /info` et 40 scénarios `POST /play`. Ils couvrent notamment les deux rôles du bot, les coordonnées du plateau, les projectiles, les champs optionnels et l'historique des actions. Chaque réponse doit être un JSON valide avec un statut HTTP 200 ; les redirections sont refusées.
+Chaque passage effectue **87 contrôles** : une requête `GET /info` et 86 scénarios `POST /play`. Ils couvrent notamment les deux rôles du bot, les coordonnées du plateau, les projectiles, les pièges et leur recharge, la zone rouge, les champs optionnels et l'historique des actions. Chaque réponse doit être un JSON valide avec un statut HTTP 200 ; les redirections sont refusées.
 
 Le CLI affiche les erreurs par scénario et termine avec le code :
 
@@ -194,3 +194,32 @@ Le workflow GitHub Actions exécute les tests Go et les tests des installateurs 
 Les tags suivent `vMAJOR.MINOR.PATCH`. Un suffixe, par exemple `v0.2.0-rc.1`, produit une préversion. Aucun secret supplémentaire n'est nécessaire : seul le job de publication reçoit la permission `contents: write` du `GITHUB_TOKEN`.
 
 Pour reprendre une publication ayant échoué avant la création de la release, relance les jobs en échec ou lance manuellement le workflow sur le tag concerné. Une release existante n'est pas écrasée ; les versions suivantes utilisent un nouveau tag.
+
+
+## Synchroniser le contrat de publication
+
+Le CLI est la source des scénarios. L’API et la bibliothèque de validation du
+worker embarquent des snapshots JSON générés, utilisables sans le dépôt du CLI.
+Après une évolution des scénarios, depuis ce dépôt :
+
+```sh
+python3 scripts/sync-contract.py
+python3 scripts/sync-contract.py --check
+axo-clash export-contract
+```
+
+Le script attend le dépôt backend voisin `../application-backend` ; utilise
+`--backend /chemin/du/backend` si nécessaire. `--check` détecte une désynchronisation
+sans modifier les fichiers. Les tests du backend vérifient également que le
+snapshot de son API et celui du worker sont identiques.
+
+Les scénarios couvrent les tours 69/70/74/75, 79/80/84/85, 89/90/94/95 et
+99/100/104/105 pour les deux sièges. La zone rouge est calculée à partir de
+`currentTurn` et des coordonnées : aucun champ fictif de couleur n’est ajouté aux
+cases. Les pièges sont testés absents ou nuls, en armement, armés, remplacés,
+expirés, sous leur créateur, sous un bot et des projectiles, ainsi qu’avec les deux
+pièges et les recharges. L’historique contient aussi `PLACE_TRAP` et sa cible.
+
+Le checker vérifie le décodage HTTP/JSON et les délais, ainsi que les coordonnées
+et la disponibilité de `PLACE_TRAP` pour le prochain tour (`currentTurn + 1`).
+Il ne mesure pas la qualité stratégique d’un bot ni sa capacité à éviter les dégâts.
